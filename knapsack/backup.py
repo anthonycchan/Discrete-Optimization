@@ -7,11 +7,14 @@ Item = namedtuple("Item", ['index', 'value', 'weight'])
 class BBMax:
     def __init__(self, size):
         self.maxValue = 0
+        self.sequence = [0]*size
         self.bestSequence = [0]*size
+        self.size = size
+        self.returned = False
         
 class Node:
 
-    def __init__(self, value, capacity, estimate, rightEval, sequence):
+    def __init__(self, value, capacity, estimate, rightEval):
 
         self.left = None
         self.right = None
@@ -19,28 +22,19 @@ class Node:
         self.capacity = capacity
         self.estimate = estimate
         self.rightEval = rightEval
-        self.sequence = copy.deepcopy(sequence)
         
 # Insert Node
-    def insert(self, value, weight, index, MaxVal):
+    def insert(self, value, weight):
 
         #Insert to the left
         if self.left is None:
             leftValue =self.value + value
             leftCapacity = self.capacity - weight
             leftEstimate = self.estimate
-            
-            self.sequence[index] = 1
             if leftCapacity >= 0:
-                self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval, self.sequence)
-                if leftValue > MaxVal.maxValue:
-                    MaxVal.maxValue = leftValue
-                    #MaxVal.bestSequence = [0] * MaxVal.size
-                    MaxVal.bestSequence.clear()
-                    MaxVal.bestSequence = copy.deepcopy(self.sequence)
-            self.sequence[index] = 0
+                self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval)
         else:
-            MaxVal = self.left.insert(value, weight, index, MaxVal)
+            self.left.insert(value, weight)
 
         #Insert to the right
         if self.rightEval > 0:
@@ -48,27 +42,52 @@ class Node:
                 rightValue = self.value
                 rightCapacity = self.capacity
                 rightEstimate = self.estimate - value
-                if rightEstimate > MaxVal.maxValue:
-                    self.rightEval -= 1
-                    self.sequence[index] = 0
-                    self.right = Node(rightValue, rightCapacity, rightEstimate, self.rightEval, self.sequence)
+                self.rightEval -= 1
+                self.right = Node(rightValue, rightCapacity, rightEstimate, self.rightEval)
             else:
-                MaxVal = self.right.insert(value, weight, index, MaxVal)
-        
-        return MaxVal
-        
+                self.right.insert(value, weight)
+            
 # Print the Tree
-    def PrintTree(self):            
+    def PrintTree(self, level, MaxVal, selected):
+        level += 1
+        
+        if selected == True:
+            MaxVal.sequence[level-2] = 1
+            #print (MaxVal.sequence)
+           
+            
+        if( self.value > MaxVal.maxValue ):
+            MaxVal.maxValue = self.value
+            MaxVal.bestSequence = [0] * MaxVal.size
+            MaxVal.bestSequence = copy.deepcopy(MaxVal.sequence)
+            print("best0: %s" %MaxVal.bestSequence)
+            #MaxVal.sequence = [0] * MaxVal.size
+        
         if self.left:
-            MaxVal = self.left.PrintTree()
+            MaxVal = self.left.PrintTree(level, MaxVal, True)
 
-        print( "value: %s " %self.value, end = "")
-        print( "capacity: %s " %self.capacity, end = "")
-        print( "estimate: %s " %self.estimate, end="")
-        print( "sequence: %s " %self.sequence)
+        #print( "level: %s " %level, end = "" )
+        #print( "value: %s " %self.value, end = "")
+        #print( "capacity: %s " %self.capacity, end = "")
+        #print( "estimate: %s " %self.estimate)
 
+        if( self.value > MaxVal.maxValue ):
+            MaxVal.maxValue = self.value
+            MaxVal.bestSequence = [0] * MaxVal.size
+            MaxVal.bestSequence = copy.deepcopy(MaxVal.sequence)
+            #print("best1: %s" %MaxVal.bestSequence)
+            #MaxVal.sequence = [0] * MaxVal.size
+
+        if MaxVal.returned == True:
+            #print ("end Level: %s" %level)
+            MaxVal.sequence[level-2] = 0
+            
         if self.right:
-            self.right.PrintTree()
+            MaxVal = self.right.PrintTree(level, MaxVal, False)
+        
+        MaxVal.returned = True
+        #print ("Returning: %s" %MaxVal.bestSequence)
+        return MaxVal
 
 # Inorder traversal
 # Left -> Root -> Right
@@ -133,7 +152,7 @@ def solve_it(input_data):
     weight = 0
     taken = [0]*len(items)
     
-    if (capacity * item_count) < 100000000:
+    if (capacity * item_count) < 1:
         print ("DP")
         
         w, h = item_count, capacity;
@@ -163,18 +182,49 @@ def solve_it(input_data):
         #print ("capacity: %s " %capacity)
         #print ("estimate: %s " %estimate)
 
-        MaxVal = BBMax(item_count)
-        sequence = [0] * item_count
-        root = Node(value, capacity, estimate, 4, sequence)
+        root = Node(value, capacity, estimate, 3)
         for item in items:
-            MaxVal = root.insert(item.value, item.weight, item.index, MaxVal)
-
-        #root.PrintTree()
+            root.insert(item.value, item.weight)
+        #root.insert(8,4)
+        #root.insert(10,5)
+        #root.insert(15,8)
+        #root.insert(4,3)
+        
+        MaxVal = BBMax(item_count)
+        MaxVal = root.PrintTree(0, MaxVal, False)
+        
+        if MaxVal.returned == True:
+            #print ("end Level: %s" %level)
+            MaxVal.bestSequence[0] = 0
+            
+        #print(root.inorderTraversal(root))
         
         value = MaxVal.maxValue
+        
         taken = copy.deepcopy(MaxVal.bestSequence)
+        #print(value)
+        for x in range(0, item_count, 1):
+            if MaxVal.bestSequence[x] == 1:
+                print (x, end="")
+                print ( " ", end="" )
+        print()
+        #Traverse the tree to 
         
+        #root.insert(items[2], -1, -1)
+        #for item in items:
+        #    root.insert(item)
+        #print(root.inorderTraversal(root))    
         
+        #items_sorted = items
+        #items_sorted.sort(key=lambda elem: elem[2])
+        #####
+        #root = Node(27)
+        #root.insert(14)
+        #root.insert(35)
+        #root.PrintTree()
+        #print(root.inorderTraversal(root))
+        #####
+    
         #for item in items:
         #    if weight + item.weight <= capacity:
         #        taken[item.index] = 1
