@@ -32,15 +32,18 @@ class Node:
             
             self.sequence[index] = 1
             if leftCapacity >= 0:
-                self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval, self.sequence)
+                if leftEstimate > MaxVal.maxValue:
+                    self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval, self.sequence)
                 if leftValue > MaxVal.maxValue:
                     MaxVal.maxValue = leftValue
                     #MaxVal.bestSequence = [0] * MaxVal.size
                     MaxVal.bestSequence.clear()
                     MaxVal.bestSequence = copy.deepcopy(self.sequence)
+                    print (MaxVal.maxValue)
             self.sequence[index] = 0
         else:
-            MaxVal = self.left.insert(value, weight, index, MaxVal)
+            if self.estimate > MaxVal.maxValue:
+                MaxVal = self.left.insert(value, weight, index, MaxVal)
 
         #Insert to the right
         if self.rightEval > 0:
@@ -53,7 +56,8 @@ class Node:
                     self.sequence[index] = 0
                     self.right = Node(rightValue, rightCapacity, rightEstimate, self.rightEval, self.sequence)
             else:
-                MaxVal = self.right.insert(value, weight, index, MaxVal)
+                if self.estimate > MaxVal.maxValue:
+                    MaxVal = self.right.insert(value, weight, index, MaxVal)
         
         return MaxVal
         
@@ -165,7 +169,7 @@ def solve_it(input_data):
 
         MaxVal = BBMax(item_count)
         sequence = [0] * item_count
-        root = Node(value, capacity, estimate, 4, sequence)
+        root = Node(value, capacity, estimate, item_count, sequence)
         for item in items:
             MaxVal = root.insert(item.value, item.weight, item.index, MaxVal)
 
