@@ -3,16 +3,14 @@
 import copy
 from collections import namedtuple
 Item = namedtuple("Item", ['index', 'value', 'weight'])
-
+ItemD = namedtuple("ItemD", ['index', 'value', 'weight', 'density'])
 class BBMax:
     def __init__(self, size):
         self.maxValue = 0
         self.bestSequence = [0]*size
         
 class Node:
-
     def __init__(self, value, capacity, estimate, rightEval, sequence):
-
         self.left = None
         self.right = None
         self.value = value
@@ -22,8 +20,7 @@ class Node:
         self.sequence = copy.deepcopy(sequence)
         
 # Insert Node
-    def insert(self, value, weight, index, MaxVal):
-
+    def insert(self, value, weight, index, MaxVal):            
         #Insert to the left
         if self.left is None:
             leftValue =self.value + value
@@ -32,48 +29,42 @@ class Node:
             
             self.sequence[index] = 1
             if leftCapacity >= 0:
-                if leftEstimate > MaxVal.maxValue:
-                    self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval, self.sequence)
-                if leftValue > MaxVal.maxValue:
+                self.left = Node(leftValue, leftCapacity, leftEstimate, self.rightEval, self.sequence)
+                if leftValue > MaxVal.maxValue:  #New max found
                     MaxVal.maxValue = leftValue
-                    #MaxVal.bestSequence = [0] * MaxVal.size
                     MaxVal.bestSequence.clear()
                     MaxVal.bestSequence = copy.deepcopy(self.sequence)
-                    print (MaxVal.maxValue)
-            self.sequence[index] = 0
+                    print("Max: %s " %MaxVal.maxValue)
+                        
+            self.sequence[index] = 0  #Set the sequence back to 0 before inserting the right child.
         else:
-            if self.estimate > MaxVal.maxValue:
-                MaxVal = self.left.insert(value, weight, index, MaxVal)
-
+            MaxVal = self.left.insert(value, weight, index, MaxVal)
         #Insert to the right
-        if self.rightEval > 0:
+        if self.rightEval > 0:  #Limited discrepancy search
             if self.right is None:
                 rightValue = self.value
                 rightCapacity = self.capacity
                 rightEstimate = self.estimate - value
-                if rightEstimate > MaxVal.maxValue:
+                if rightEstimate > MaxVal.maxValue:  #pruning
                     self.rightEval -= 1
                     self.sequence[index] = 0
                     self.right = Node(rightValue, rightCapacity, rightEstimate, self.rightEval, self.sequence)
             else:
-                if self.estimate > MaxVal.maxValue:
-                    MaxVal = self.right.insert(value, weight, index, MaxVal)
+                MaxVal = self.right.insert(value, weight, index, MaxVal)
         
         return MaxVal
-        
+            
+            
 # Print the Tree
     def PrintTree(self):            
         if self.left:
             MaxVal = self.left.PrintTree()
-
         print( "value: %s " %self.value, end = "")
         print( "capacity: %s " %self.capacity, end = "")
         print( "estimate: %s " %self.estimate, end="")
         print( "sequence: %s " %self.sequence)
-
         if self.right:
             self.right.PrintTree()
-
 # Inorder traversal
 # Left -> Root -> Right
     def inorderTraversal(self, root):
@@ -96,12 +87,11 @@ def solve_it(input_data):
         line = lines[i]
         parts = line.split()
         items.append(Item(i-1, int(parts[0]), int(parts[1])))
-    
+        
     #print ("k: %s \t" %(capacity), end="")
     #print ("j: %s" %(item_count))
-    #print ("total: %s" %(capacity * item_count) )
+    print ("total: %s" %(capacity * item_count) )
     #print ("weight: %s" %(items[item_count-1].weight))
-
     
     
     #Opt_cache[capacity-4][0] = Opt(capacity-3, 0, items, Opt_cache)
@@ -158,23 +148,51 @@ def solve_it(input_data):
     else:
         print ("BnB")
         
-        estimate = 0
-        for item in items:
-            estimate += item.value
+        # Create a new list that has the item density
+        itemsWithDensity = []
+        for i in range(1, item_count+1):
+            line = lines[i]
+            parts = line.split()
+            itemsWithDensity.append(ItemD(i-1, int(parts[0]), int(parts[1]), (int(parts[0])/int(parts[1])) ))
+       
+        # sort by density in decending order
+        itemsWithDensity.sort(key=lambda elem: elem[3], reverse=True)
         
-        value = 0
-        #print ("value: %s " %value)
-        #print ("capacity: %s " %capacity)
-        #print ("estimate: %s " %estimate)
-
+        #for item in itemsWithDensity:
+        #    print (item)
+        #print()
+        
+        # compute the relaxed value
+        itemsRelaxed = []
+        capacityLeft = capacity
+        for item in itemsWithDensity:
+            if item.weight > capacityLeft:
+                continue
+            if capacityLeft <= 0:
+                break
+                
+            newValue = item.value
+            if item.weight > capacityLeft:  #item cannot fit
+                newValue = (capacityLeft / item.weight) * item.value #partial value
+            itemsRelaxed.append(Item(item.index, newValue, item.weight))
+            capacityLeft = capacityLeft - item.weight
+        
+        
+        #Put back in original order (Not needed because I was using the index to populate the sequence list)
+        #itemsRelaxed.sort(key=lambda elem: elem[0])
+        
+        
+        # Get relaxed estimate
+        relaxedEstimate = 0
+        for item in itemsRelaxed:
+            relaxedEstimate += item.value
+        # Create the branch and bound tree
         MaxVal = BBMax(item_count)
         sequence = [0] * item_count
-        root = Node(value, capacity, estimate, item_count, sequence)
-        for item in items:
+        root = Node(0, capacity, relaxedEstimate, item_count, sequence)
+        for item in itemsRelaxed:
             MaxVal = root.insert(item.value, item.weight, item.index, MaxVal)
-
-        #root.PrintTree()
-        
+            
         value = MaxVal.maxValue
         taken = copy.deepcopy(MaxVal.bestSequence)
         
@@ -193,7 +211,7 @@ def solve_it(input_data):
     
 # Recursive Dynamic Programming
 def Opt(k, j, items, Opt_cache, lastZeroK, lastZeroJ):
-    	
+     
     if k <= lastZeroK and j <= lastZeroJ:
         return 0
         
