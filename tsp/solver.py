@@ -4,6 +4,7 @@
 import math
 from collections import namedtuple
 import copy
+import random
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -80,6 +81,17 @@ def solve_it(input_data):
     for indx in range(0, nodeCount):
         solution.append(indx)
 
+
+    tabu = {}
+    for i in range(0, nodeCount):
+        for j in range(0, nodeCount):
+            if i == j:
+                continue
+            tabu[(i,j)] = 1
+            #print ("%s," %i, end="")
+            #print ("%s " %j, end="")
+            #print(tabu[i,j])
+
     ## Debug ##
     #for mainIndx in range(0, nodeCount): 
         #mainConnectionIndx = nextEdge(nodeCount, mainIndx)
@@ -88,10 +100,14 @@ def solve_it(input_data):
         #print(length(points[solution[mainIndx]], points[solution[mainConnectionIndx]]))
         
     #print("DEBUG END")
-    
-    for iter in range(0, 10000):
+
+    globalMinimum = -1
+    globalMinSolution = []
+    L = 10
+    for iter in range(0, 500):
         nextAltConnection = -1
-        for mainIndx in range(0, nodeCount):           
+        
+        for mainIndx in range(0, nodeCount):
             lastIndx = prevEdge(nodeCount, mainIndx)
             
             #if nextAltConnection >= lastIndx:
@@ -159,11 +175,28 @@ def solve_it(input_data):
                 #print("smallestAltConnection: %s" %smallestAltConnection)
                 #print("smallestDistance: %s" %smallestDistance)
                 #print("mainDistance: %s" %mainDistance)
-                if smallestDistance < mainDistance:
-                    solution = swap(solution, nodeCount, mainIndx, smallestAltConnection)
-                    nextAltConnection = smallestAltConnection
-                    hasSwap = True
-
+                currentObj = 0
+                hypoObj =0
+                hypoSwap = swap(solution, nodeCount, mainIndx, smallestAltConnection)
+                for index in range(0, nodeCount-1):
+                    currentObj += length(points[solution[index]], points[solution[index+1]])
+                    hypoObj += length(points[hypoSwap[index]], points[hypoSwap[index+1]])
+                
+                if tabu[mainIndx, smallestAltConnection] <= iter:
+                    if smallestDistance < mainDistance or hypoObj < currentObj:
+                        solution = swap(solution, nodeCount, mainIndx, smallestAltConnection)
+                        nextAltConnection = smallestAltConnection
+                        hasSwap = True
+                        tabu[mainIndx, smallestAltConnection] = iter + L
+                        tabu[smallestAltConnection, mainIndx] = iter + L
+                        
+        globalLength = -1
+        for index in range(0, nodeCount-1):
+            globalLength += length(points[solution[index]], points[solution[index+1]])
+        if globalLength < globalMinimum or globalMinimum == -1:
+            globalMinimum = globalLength
+            globalMinSolution = copy.deepcopy(solution)
+                
                 #print("\n\tnewSolution: %s" %solution)    
                 #print(nextAltConnection)
                 #print("====================")
@@ -171,6 +204,7 @@ def solve_it(input_data):
             #break
             
 
+    solution = copy.deepcopy(globalMinSolution)
     # calculate the length of the tour    
     obj = length(points[solution[-1]], points[solution[0]])
     for index in range(0, nodeCount-1):
