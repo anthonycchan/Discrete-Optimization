@@ -48,13 +48,13 @@ def solve_it(input_data):
     #print(facilities)
     #print(facilitiesVar)
     for i in range(0, facility_count):
-        facilitiesVar[i] = solver.IntVar(0.0, 1.0, str(i))
+        facilitiesVar[i] = solver.BoolVar(str(i))
         objective.SetCoefficient(facilitiesVar[i], facilities[i].setup_cost)
     
     customersVar = [[-1 for x in range(facility_count)] for y in range(customer_count)]
     for i in range(0, customer_count):
         for j in range(0, facility_count):
-            customersVar[i][j] = solver.IntVar(0.0, 1.0, str(i) + "-" + str(j))
+            customersVar[i][j] = solver.BoolVar(str(i) + "-" + str(j))
             #print(str(i) + "-" + str(j) + " ", end="")
             #print(customers[i].location, end="")
             #print(facilities[j].location, end="")
@@ -72,13 +72,18 @@ def solve_it(input_data):
     # Facility activation constraint
     FAconstraints = [0] * facility_count
     #print(FAconstraints)
-    for i in range(0, facility_count):
-        FAconstraints[i] = solver.Constraint(0, solver.infinity())
-        FAconstraints[i].SetCoefficient(facilitiesVar[i], facility_count)
+    #for i in range(0, facility_count):
+    #    FAconstraints[i] = solver.Constraint(0, solver.infinity())
+    #    FAconstraints[i].SetCoefficient(facilitiesVar[i], facility_count)
         #print(facility_count)
+    #    for j in range(0, customer_count):
+    #        FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
+    for i in range(0, facility_count):
         for j in range(0, customer_count):
+            FAconstraints[i] = solver.Constraint(0, solver.infinity())
+            FAconstraints[i].SetCoefficient(facilitiesVar[i], 1)
             FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
-    
+            
     # Customer connection constraint
     CCConstraint = [0] * customer_count 
     for i in range(0, customer_count):
@@ -97,10 +102,14 @@ def solve_it(input_data):
         
     print('Number of constraints =', solver.NumConstraints())
     
-    if solver.NumVariables() >= 4002000:
+    if solver.NumVariables() >= 4002000:  #problem 8  1:15
+        solver.SetTimeLimit(4500000)
+    elif solver.NumVariables() >= 160200: #problem 5 0:30
+        solver.SetTimeLimit(1800000)
+    elif solver.NumVariables() >= 1500500: #problem 6  1:00
         solver.SetTimeLimit(3600000)
     else:
-        solver.SetTimeLimit(1800000)
+        solver.SetTimeLimit(3600000)  #problem 4 and 7  01:00 
     
     result_status = solver.Solve()
    
