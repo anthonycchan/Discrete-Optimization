@@ -34,7 +34,8 @@ def solve_it(input_data):
         parts = lines[i].split()
         customers.append(Customer(i-1-facility_count, int(parts[0]), Point(float(parts[1]), float(parts[2]))))
 
-    print("variables: %s" %((facility_count*customer_count)+facility_count))
+    varCount = (facility_count*customer_count)+facility_count
+    print("variables: %s" %varCount)
     
     # Create the mip solver with the CBC backend.
     solver = pywraplp.Solver('simple_mip_program',
@@ -42,111 +43,137 @@ def solve_it(input_data):
     
     infinity = solver.infinity()
     
-    # Define the variables and set the objective
-    objective = solver.Objective()
-    facilitiesVar = [[]] * len(facilities)
-    #print(facilities)
-    #print(facilitiesVar)
-    for i in range(0, facility_count):
-        facilitiesVar[i] = solver.BoolVar(str(i))
-        objective.SetCoefficient(facilitiesVar[i], facilities[i].setup_cost)
-    
-    customersVar = [[-1 for x in range(facility_count)] for y in range(customer_count)]
-    for i in range(0, customer_count):
-        for j in range(0, facility_count):
-            customersVar[i][j] = solver.BoolVar(str(i) + "-" + str(j))
-            #print(str(i) + "-" + str(j) + " ", end="")
-            #print(customers[i].location, end="")
-            #print(facilities[j].location, end="")
-            #print(" =%s" %length(customers[i].location, facilities[j].location))
-            objective.SetCoefficient(customersVar[i][j], length(customers[i].location, facilities[j].location))
-            
-            #print(customers[i].index, end="")
-            #print(" %s" %facilities[j].index) 
-        
-    print('Number of variables =', solver.NumVariables())
-        
-    objective.SetMinimization()
-        
-    # Define the constraints
-    # Facility activation constraint
-    FAconstraints = [0] * facility_count
-    #print(FAconstraints)
-    #for i in range(0, facility_count):
-    #    FAconstraints[i] = solver.Constraint(0, solver.infinity())
-    #    FAconstraints[i].SetCoefficient(facilitiesVar[i], facility_count)
-        #print(facility_count)
-    #    for j in range(0, customer_count):
-    #        FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
-    for i in range(0, facility_count):
-        for j in range(0, customer_count):
-            FAconstraints[i] = solver.Constraint(0, solver.infinity())
-            FAconstraints[i].SetCoefficient(facilitiesVar[i], 1)
-            FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
-            
-    # Customer connection constraint
-    CCConstraint = [0] * customer_count 
-    for i in range(0, customer_count):
-        CCConstraint[i] = solver.Constraint(1, 1)
-        for j in range(0, facility_count):
-            CCConstraint[i].SetCoefficient(customersVar[i][j], 1)
-
-    # Facility capacity constraint
-    FCConstraint = [0] * facility_count
-    for i in range(0, facility_count):
-        FCConstraint[i] = solver.Constraint(0, solver.infinity())
-        FCConstraint[i].SetCoefficient(facilitiesVar[i], facilities[i].capacity)
-        for j in range(0, customer_count):
-            FCConstraint[i].SetCoefficient(customersVar[j][i], -customers[j].demand)
-        
-        
-    print('Number of constraints =', solver.NumConstraints())
-    
-    if solver.NumVariables() >= 4002000:  #problem 8  1:15
-        solver.SetTimeLimit(4500000)
-    elif solver.NumVariables() >= 160200: #problem 5 0:30
-        solver.SetTimeLimit(1800000)
-    elif solver.NumVariables() >= 1500500: #problem 6  1:00
+    useGreedyAlgo = False
+    useBooleanVar = True
+    useIndividualFacilityConstraint = True
+    if varCount >= 4002000:  #problem 8  1:15
+        solver.SetTimeLimit(1)
+        print("4500000")
+        useGreedyAlgo = True
+    elif varCount == 160200: #problem 5 0:45
+        solver.SetTimeLimit(2700000)
+        print("2700000")
+        useIndividualFacilityConstraint = False
+        useBooleanVar = False
+    elif varCount == 1500500: #problem 6  1:00
         solver.SetTimeLimit(3600000)
+        print("3600000")
+        useIndividualFacilityConstraint = False
+    elif varCount == 1501000: #problem 7  1:15
+        solver.SetTimeLimit(4500000)
+        print("4500000")
+        useIndividualFacilityConstraint = False
     else:
-        solver.SetTimeLimit(3600000)  #problem 4 and 7  01:00 
-    
-    result_status = solver.Solve()
-   
-    if result_status == solver.OPTIMAL:
-        print('Optimal Objective value =', solver.Objective().Value())
-    else:  # No optimal solution was found.
-        if result_status == solver.FEASIBLE:
-          print('A potentially suboptimal solution was found.')
-          print('Suboptimal Objective value =', solver.Objective().Value())
-        else:
-          print('The solver could not solve the problem.')
-      
-    #for i in range(0, facility_count):
-    #    print("%s =" %i, end="")
-    #    print(facilitiesVar[i].solution_value())
-    #for i in range(0, customer_count):
-    #    for j in range(0, facility_count):
-    #        print("%s =" %(str(i) + "-" + str(j)), end="")
-    #        print(customersVar[i][j].solution_value())
-    
+        solver.SetTimeLimit(3600000)  #problem 4  01:00 
+        print("3600000")
+       
     solution = [-1]*len(customers)
-    for i in range(0, customer_count):
-        for j in range(0, facility_count):
-            if customersVar[i][j].solution_value() == 1.0:
-                solution[i] = j
+    if useGreedyAlgo == False:
+        # Define the variables and set the objective
+        objective = solver.Objective()
+        facilitiesVar = [[]] * len(facilities)
+        #print(facilities)
+        #print(facilitiesVar)
+        for i in range(0, facility_count):
+            if useBooleanVar is True:
+                facilitiesVar[i] = solver.BoolVar(str(i))
+            else:
+                facilitiesVar[i] = solver.IntVar(0.0, 1.0, str(i))
                 
-    #capacity_remaining = [f.capacity for f in facilities]
-    #facility_index = 0
-    #for customer in customers:
-    #    if capacity_remaining[facility_index] >= customer.demand:
-    #       solution[customer.index] = facility_index
-    #        capacity_remaining[facility_index] -= customer.demand
-    #    else:
-    #        facility_index += 1
-    #        assert capacity_remaining[facility_index] >= customer.demand
-    #        solution[customer.index] = facility_index
-    #        capacity_remaining[facility_index] -= customer.demand
+            objective.SetCoefficient(facilitiesVar[i], facilities[i].setup_cost)
+        
+        customersVar = [[-1 for x in range(facility_count)] for y in range(customer_count)]
+        for i in range(0, customer_count):
+            for j in range(0, facility_count):
+                if useBooleanVar is True:
+                    customersVar[i][j] = solver.BoolVar(str(i) + "-" + str(j))
+                else:
+                    customersVar[i][j] = solver.IntVar(0.0, 1.0, str(i) + "-" + str(j))
+                    
+                #print(str(i) + "-" + str(j) + " ", end="")
+                #print(customers[i].location, end="")
+                #print(facilities[j].location, end="")
+                #print(" =%s" %length(customers[i].location, facilities[j].location))
+                objective.SetCoefficient(customersVar[i][j], length(customers[i].location, facilities[j].location))
+                
+                #print(customers[i].index, end="")
+                #print(" %s" %facilities[j].index) 
+            
+        print('Number of variables =', solver.NumVariables())
+            
+        objective.SetMinimization()
+            
+        # Define the constraints
+        # Facility activation constraint
+        FAconstraints = [0] * facility_count
+        if useIndividualFacilityConstraint == False:
+            for i in range(0, facility_count):
+                FAconstraints[i] = solver.Constraint(0, solver.infinity())
+                FAconstraints[i].SetCoefficient(facilitiesVar[i], facility_count)
+                for j in range(0, customer_count):
+                    FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
+        else:
+            for i in range(0, facility_count):
+                for j in range(0, customer_count):
+                    FAconstraints[i] = solver.Constraint(0, solver.infinity())
+                    FAconstraints[i].SetCoefficient(facilitiesVar[i], 1)
+                    FAconstraints[i].SetCoefficient(customersVar[j][i], -1)
+                
+        # Customer connection constraint
+        CCConstraint = [0] * customer_count 
+        for i in range(0, customer_count):
+            CCConstraint[i] = solver.Constraint(1, 1)
+            for j in range(0, facility_count):
+                CCConstraint[i].SetCoefficient(customersVar[i][j], 1)
+
+        # Facility capacity constraint
+        FCConstraint = [0] * facility_count
+        for i in range(0, facility_count):
+            FCConstraint[i] = solver.Constraint(0, solver.infinity())
+            FCConstraint[i].SetCoefficient(facilitiesVar[i], facilities[i].capacity)
+            for j in range(0, customer_count):
+                FCConstraint[i].SetCoefficient(customersVar[j][i], -customers[j].demand)
+            
+            
+        print('Number of constraints =', solver.NumConstraints())
+            
+        result_status = solver.Solve()
+       
+        isFeasible = True
+        if result_status == solver.OPTIMAL:
+            print('Optimal Objective value =', solver.Objective().Value())
+        else:  # No optimal solution was found.
+            if result_status == solver.FEASIBLE:
+              print('A potentially suboptimal solution was found.')
+              print('Suboptimal Objective value =', solver.Objective().Value())
+            else:
+              print('The solver could not solve the problem.')
+              isFeasible = False
+          
+        #for i in range(0, facility_count):
+        #    print("%s =" %i, end="")
+        #    print(facilitiesVar[i].solution_value())
+        #for i in range(0, customer_count):
+        #    for j in range(0, facility_count):
+        #        print("%s =" %(str(i) + "-" + str(j)), end="")
+        #        print(customersVar[i][j].solution_value())
+        
+        for i in range(0, customer_count):
+            for j in range(0, facility_count):
+                if customersVar[i][j].solution_value() == 1.0:
+                    solution[i] = j
+    else:    
+        capacity_remaining = [f.capacity for f in facilities]
+        facility_index = 0
+        for customer in customers:
+            if capacity_remaining[facility_index] >= customer.demand:
+               solution[customer.index] = facility_index
+               capacity_remaining[facility_index] -= customer.demand
+            else:
+                facility_index += 1
+                assert capacity_remaining[facility_index] >= customer.demand
+                solution[customer.index] = facility_index
+                capacity_remaining[facility_index] -= customer.demand
 
             
     used = [0]*len(facilities)
