@@ -40,8 +40,8 @@ def solve_it(input_data):
     solutionStrategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
     localSearchStrategy = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     if customer_count == 200: #problem 5
-        #useGoogleVRPSolver = False
-        timeLimit = 18000
+        useGoogleVRPSolver = False
+        #timeLimit = 18000
         #solutionStrategy = routing_enums_pb2.FirstSolutionStrategy.GLOBAL_CHEAPEST_ARC
         #localSearchStrategy = routing_enums_pb2.LocalSearchMetaheuristic.TABU_SEARCH
     elif customer_count == 101: #problem 4
@@ -85,7 +85,7 @@ def solve_it(input_data):
             return customers[from_node].demand
 
         vehicleCap=[vehicle_capacity for i in range(vehicle_count)]
-        print(vehicleCap)
+        #print(vehicleCap)
         demand_callback_index = routing.RegisterUnaryTransitCallback(
             demand_callback)
         routing.AddDimensionWithVehicleCapacity(
@@ -101,7 +101,7 @@ def solve_it(input_data):
         search_parameters.local_search_metaheuristic = ( localSearchStrategy )
         search_parameters.time_limit.seconds = timeLimit
         #search_parameters.lns_time_limit.seconds = 20
-        search_parameters.log_search = True
+        search_parameters.log_search = False
         
         # Solve the problem.
         assignment = routing.SolveWithParameters(search_parameters)
