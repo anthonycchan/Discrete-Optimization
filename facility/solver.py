@@ -5,11 +5,14 @@ from __future__ import print_function
 from ortools.linear_solver import pywraplp
 from collections import namedtuple
 from ortools.linear_solver import linear_solver_pb2
+from ortools.graph import pywrapgraph
+
 import math
 
 Point = namedtuple("Point", ['x', 'y'])
 Facility = namedtuple("Facility", ['index', 'setup_cost', 'capacity', 'location'])
 Customer = namedtuple("Customer", ['index', 'demand', 'location'])
+FacilityPoint = namedtuple("FacilityPoint", ['index', 'cost'])
 
 def length(point1, point2):
     return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
@@ -46,10 +49,14 @@ def solve_it(input_data):
     useGreedyAlgo = False
     useBooleanVar = True
     useIndividualFacilityConstraint = True
+    useSetCoverConstraint = False
+    useCACoverSetConstraint = False
+    useFacilityDistanceConstraint = True
+    distanceReductionFactor = 1
     if varCount >= 4002000:  #problem 8  1:15
         solver.SetTimeLimit(1)
         print("4500000")
-        useGreedyAlgo = True
+        distanceReductionFactor = 0.1
     elif varCount == 160200: #problem 5 0:45
         solver.SetTimeLimit(2700000)
         print("2700000")
@@ -59,15 +66,19 @@ def solve_it(input_data):
         solver.SetTimeLimit(3600000)
         print("3600000")
         useIndividualFacilityConstraint = False
+        distanceReductionFactor = 0.9
     elif varCount == 1501000: #problem 7  1:15
         solver.SetTimeLimit(4500000)
         print("4500000")
         useIndividualFacilityConstraint = False
-    else:
-        solver.SetTimeLimit(3600000)  #problem 4  01:00 
-        print("3600000")
+        distanceReductionFactor = 0.1
+    elif varCount == 100100: #problem 4
+        distanceReductionFactor = 0.8
+        solver.SetTimeLimit(9000000)  # 02:30
+        print("9000000")
        
     solution = [-1]*len(customers)
+    
     if useGreedyAlgo == False:
         # Define the variables and set the objective
         objective = solver.Objective()
@@ -133,8 +144,54 @@ def solve_it(input_data):
             FCConstraint[i].SetCoefficient(facilitiesVar[i], facilities[i].capacity)
             for j in range(0, customer_count):
                 FCConstraint[i].SetCoefficient(customersVar[j][i], -customers[j].demand)
+        
+        # Facility set cover constraint for maximum number of customers per facility
+        if useSetCoverConstraint == True:
+            FCoverSetConstraint = [0] * facility_count
+            customers.sort(key=lambda elem: elem[1], reverse=False)
+            totalDemand = 0
+            maxCustomers = 0
+            for i in range(0, facility_count):
+                for j in range(0, customer_count):
+                    if totalDemand <= facilities[i].capacity:
+                        totalDemand += customers[j].demand
+                        maxCustomers += 1
+                    else:
+                        break
+                        
+                #maxCustomers = maxCustomers * 0.8
+                FCoverSetConstraint[i] = solver.Constraint(0, maxCustomers)
+                for j in range(0, customer_count):
+                    FCoverSetConstraint[i].SetCoefficient(customersVar[j][i], 1)
             
-            
+        if useCACoverSetConstraint == True:
+            CACoverSetConstraint = solver.Constraint(customer_count, customer_count)
+            for i in range(0, customer_count):
+                for j in range(0, facility_count):
+                    CACoverSetConstraint.SetCoefficient(customersVar[i][j], 1)
+
+        if useFacilityDistanceConstraint == True:
+            for i in range(0, customer_count):
+                facilitiesByDistance = []
+                FDConstraint = solver.Constraint(1, 1)
+                FDConstraintComp = solver.Constraint(0, 0)
+                for j in range(0, facility_count):
+                    fixedCost = facilities[j].setup_cost
+                    distance = length(customers[i].location, facilities[j].location)
+                    cost = fixedCost + distance
+                    facilitiesByDistance.append(FacilityPoint(j, cost))
+
+                facilitiesByDistance.sort(key=lambda elem: elem[1], reverse=False)
+                
+                radius=int(len(facilitiesByDistance)*distanceReductionFactor)
+                for j in range(0, radius):
+                    FDConstraint.SetCoefficient(customersVar[i][j], 1)
+                
+                for j in range(int(len(facilitiesByDistance)/1), radius+1, -1 ):
+                    #print ("comp %s" %j)
+                    FDConstraintComp.SetCoefficient(customersVar[i][j-1], 1)
+                    
+                    
         print('Number of constraints =', solver.NumConstraints())
             
         result_status = solver.Solve()
@@ -162,6 +219,8 @@ def solve_it(input_data):
             for j in range(0, facility_count):
                 if customersVar[i][j].solution_value() == 1.0:
                     solution[i] = j
+    
+    # Greedy algorithm
     else:    
         capacity_remaining = [f.capacity for f in facilities]
         facility_index = 0

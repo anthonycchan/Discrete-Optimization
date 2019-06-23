@@ -1,16 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from __future__ import print_function
+
 import math
 from collections import namedtuple
-
 import copy
 import random
-
-
-import math
-from ortools.constraint_solver import routing_enums_pb2
-from ortools.constraint_solver import pywrapcp
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -66,139 +60,20 @@ def swap(solution, nodeCount, startIndx, endIndx):
     
     return solutionCopy
     
-def create_data_model(inputData):
-    """Stores the data for the problem."""
-    data = {}
-    # Locations in block units
-    data['locations'] = inputData
-    data['num_vehicles'] = 1
-    data['depot'] = 0
-    return data
-
-
-def compute_euclidean_distance_matrix(locations):
-    """Creates callback to return distance between points."""
-    distances = {}
-    for from_counter, from_node in enumerate(locations):
-        distances[from_counter] = {}
-        for to_counter, to_node in enumerate(locations):
-            if from_counter == to_counter:
-                distances[from_counter][to_counter] = 0
-            else:
-                # Euclidean distance
-                distances[from_counter][to_counter] = (int(
-                    math.hypot((from_node[0] - to_node[0]),
-                               (from_node[1] - to_node[1]))))
-    return distances
-
-
-def print_solution(manager, routing, assignment):
-    """Prints assignment on console."""
-    #print('Objective: {}'.format(assignment.ObjectiveValue()))
-    index = routing.Start(0)
-    plan_output = 'Route:\n'
-    route_distance = 0
-    result = []
-    while not routing.IsEnd(index):
-        result.append(index)
-        plan_output += ' {} ->'.format(manager.IndexToNode(index))
-        previous_index = index
-        index = assignment.Value(routing.NextVar(index))
-        route_distance += routing.GetArcCostForVehicle(previous_index, index, 0)
-    plan_output += ' {}\n'.format(manager.IndexToNode(index))
-    #print(plan_output)
-    plan_output += 'Objective: {}m\n'.format(route_distance)
-    return result
-    
 def solve_it(input_data):
-    """Entry point of the program."""
-    # Instantiate the data problem.
+    # Modify this code to run your optimization algorithm
+
     # parse the input
     lines = input_data.split('\n')
 
     nodeCount = int(lines[0])
 
     points = []
-    inputData = []
     for i in range(1, nodeCount+1):
         line = lines[i]
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
-        x = int(float(parts[0])*100)
-        y = int(float(parts[1])*100)
-        inputData.append( (x, y) )
 
-    # Modify this code to run your optimization algorithm
-    solution = []
-    if nodeCount <= 1889: #Using the google solver for problem 6
-        solution = solveCustom(nodeCount, points)
-    else:
-        solution = solveGoogle(nodeCount, inputData, points)
-
-    # calculate the length of the tour    
-    obj = length(points[solution[-1]], points[solution[0]])
-    for index in range(0, nodeCount-1):
-        obj += length(points[solution[index]], points[solution[index+1]])
-
-    # prepare the solution in the specified output format
-    output_data = '%.2f' % obj + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
-
-    return output_data
-
-def solveGoogle(nodeCount, inputData, points):
-    #####GOOGLE SOLVER#####
-    print("GOOGLE!!!")
-    data = create_data_model(inputData)
-
-    # Create the routing index manager.
-    manager = pywrapcp.RoutingIndexManager(
-        len(data['locations']), data['num_vehicles'], data['depot'])
-
-    # Create Routing Model.
-    routing = pywrapcp.RoutingModel(manager)
-
-    #distance_matrix = compute_euclidean_distance_matrix(data['locations'])
-
-    def distance_callback(from_index, to_index):
-        """Returns the distance between the two nodes."""
-        # Convert from routing variable Index to distance matrix NodeIndex.
-        #from_node = manager.IndexToNode(from_index)
-        #to_node = manager.IndexToNode(to_index)
-        #return distance_matrix[from_node][to_node]
-            
-        #print("google- %s" %distance_matrix[from_node][to_node])
-        if to_index == nodeCount:
-            to_index -=1
-        #print("%s-" %from_index,end="")
-        #print(to_index)
-        x = int(length(points[from_index], points[to_index])*100)
-        #print(x)
-        return x
-
-    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
-
-    # Define cost of each arc.
-    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
-
-    # Setting first solution heuristic.
-    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
-    search_parameters.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
-    #search_parameters.local_search_metaheuristic = (routing_enums_pb2.LocalSearchMetaheuristic.SIMULATED_ANNEALING)
-    search_parameters.lns_time_limit.seconds = 1
-    search_parameters.solution_limit = 1
-    
-    # Solve the problem.
-    assignment = routing.SolveWithParameters(search_parameters)
-
-    # Print solution on console.
-    if assignment:
-        solution = print_solution(manager, routing, assignment)
-    
-    return solution
-    
-def solveCustom(nodeCount, points):
     #globalMinimum0 = -1
     #globalMinSolution0 = []
     #for iter2 in range(0, 10):
@@ -220,8 +95,8 @@ def solveCustom(nodeCount, points):
     L = 10
     movement = 0
     globalMinIter = 0
-    
-
+    secondBestIter = 0
+    exploreLargestIter = 0
     for iter in range(0, 1000000):
         
         nextAltConnection = -1
@@ -266,20 +141,25 @@ def solveCustom(nodeCount, points):
             end = prevEdge(nodeCount, (iter+L+L-1 %nodeCount))
             solution = swap(globalMinSolution, nodeCount, start, end)
             
+        if iter > globalMinIter + 6 and globalMinIter > 0: #5
+            start = nextEdge(nodeCount, (iter % nodeCount))
+            end = nextEdge(nodeCount, nextEdge(nodeCount, nextEdge(nodeCount, start)))
+            solution = swap(globalMinSolution, nodeCount, start, end)
+            
         #if nodeCount == 100 and iter > globalMinIter + 60:
         #    random.shuffle(solution)
         #    print(solution)
         #    globalMinIter = iter
             
-        exploreWorstSolutions = False
-        if iter > globalMinIter + 40:
-            exploreWorstSolutions = True
-            globalMinIter = iter
-
+        exploreSecondBestSolutions = False
         exploreLargestSolution = False
-        if iter > globalMinIter + 50:
+        if iter > secondBestIter + 40:
+            exploreSecondBestSolutions = True
+            secondBestIter = iter
+
+        if iter > exploreLargestIter + 50:
             exploreLargestSolution = True
-            globalMinIter = iter
+            exploreLargestIter = iter
         
         # problem 2 only
         if nodeCount == 100 and iter > globalMinIter + 6:
@@ -306,9 +186,9 @@ def solveCustom(nodeCount, points):
             
         #problem 6
         twoOptOnly = False
-        if nodeCount > 1889 and iter < 60000: 
+        if nodeCount > 1889 and iter < 30000: 
             twoOptOnly = True
-            #exploreWorstSolutions = False
+            #exploreSecondBestSolutions = False
             #exploreLargestSolution = False
             
         movement = 0
@@ -368,7 +248,7 @@ def solveCustom(nodeCount, points):
                         largestDistance = altDistance
                         largestAltConnection = altConnection
                         
-                if exploreWorstSolutions:
+                if exploreSecondBestSolutions:
                     smallestDistance = secondSmallestDistance
                     smallestAltConnection = secondSmallestAltConnection
                     
@@ -392,7 +272,7 @@ def solveCustom(nodeCount, points):
                             currentObj += length(points[solution[index]], points[solution[index+1]])
                             hypoObj += length(points[hypoSwap[index]], points[hypoSwap[index+1]])
                     
-                    if smallestDistance < mainDistance or hypoObj < currentObj or exploreWorstSolutions or exploreLargestSolution:
+                    if smallestDistance < mainDistance or hypoObj < currentObj:
                         solution = swap(solution, nodeCount, mainIndx, smallestAltConnection)
                         nextAltConnection = smallestAltConnection
                         hasSwap = True
@@ -413,13 +293,26 @@ def solveCustom(nodeCount, points):
             globalMinimum = globalLength
             globalMinSolution = copy.deepcopy(solution)
             globalMinIter = iter
+            secondBestIter = iter
+            exploreLargestIter = iter
             print("%s - " %iter, end="")
             print("%s - " %movement, end="")
             print(globalMinimum)
-    
+               
     solution = copy.deepcopy(globalMinSolution)
-    return solution
     
+    # calculate the length of the tour    
+    obj = length(points[solution[-1]], points[solution[0]])
+    for index in range(0, nodeCount-1):
+        obj += length(points[solution[index]], points[solution[index+1]])
+
+    # prepare the solution in the specified output format
+    output_data = '%.2f' % obj + ' ' + str(0) + '\n'
+    output_data += ' '.join(map(str, solution))
+
+    return output_data
+
+
 import sys
 
 if __name__ == '__main__':
